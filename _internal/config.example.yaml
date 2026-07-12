@@ -1,0 +1,33 @@
+# ============================================================
+# WeChat MP Writer — 配置文件
+# ============================================================
+# 复制此文件为 config.yaml 并填入你的信息。
+# config.yaml 不会被 git 追踪（已在 .gitignore 中）。
+# ============================================================
+
+# —— 微信 API 凭证（发布草稿箱必填） ——
+wechat:
+  appid: ""        # 微信公众号 AppID
+  secret: ""       # 微信公众号 AppSecret
+  author: ""       # 文章署名（可选，默认为 style.yaml 中的 author）
+
+# —— 写作风格 ——
+# 如果存在 style.yaml，会优先读取。
+# 如果没有 style.yaml，Agent 会引导你完成 onboard 设置。
+style:
+  name: ""             # 公众号名称
+  topics: []           # 内容方向，如 ["AI", "产品设计"]
+  tone: ""             # 写作风格描述
+  writing_persona: "midnight-friend"  # 写作人格，可选: midnight-friend | warm-editor | industry-observer | sharp-journalist | cold-analyst
+
+# —— AI 写稿（自动生成文章必填） ——
+ai:
+  provider: "deepseek"                 # 默认使用 DeepSeek 开放平台
+  base_url: "https://api.deepseek.com" # OpenAI 兼容接口地址
+  api_key: ""                          # DeepSeek API Key
+  model: "deepseek-v4-flash"           # 默认写稿模型
+
+# —— 图片生成（可选） ——
+image:
+  provider: ""         # 图片生成 provider
+  api_key: ""          # API key

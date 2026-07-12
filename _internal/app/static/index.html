@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WeWrite</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <nav class="top-nav" aria-label="主导航">
+    <div class="top-nav-inner">
+      <strong>WeWrite</strong>
+      <button type="button" class="nav-button" data-page="styles">范文学习</button>
+      <button type="button" class="nav-button" data-page="article">文章工作台</button>
+      <button type="button" class="nav-button" data-page="history">草稿历史</button>
+      <button id="newArticleButton" type="button" class="new-article-button">＋ 新建文章</button>
+      <button id="settingsButton" type="button" class="settings-button" title="设置" aria-label="设置">⚙</button>
+    </div>
+  </nav>
+
+  <main class="setup-shell">
+    <section class="setup-card">
+      <header class="setup-header">
+        <p class="eyebrow">WeWrite</p>
+        <h1 id="mainTitle">先把账号配置好</h1>
+        <p id="mainSubtitle" class="subtle">像做填空题一样，一次只填一项。填完后点“下一项”。</p>
+      </header>
+
+      <div class="progress" aria-label="配置进度">
+        <div id="progressBar"></div>
+      </div>
+
+      <section id="questionPanel" class="question-panel"></section>
+
+      <div class="button-row">
+        <button id="backButton" type="button" class="ghost">上一项</button>
+        <button id="skipButton" type="button" class="ghost">跳过</button>
+        <button id="nextButton" type="button">下一项</button>
+      </div>
+
+      <p id="message" class="message" role="status"></p>
+    </section>
+
+    <aside class="status-panel">
+      <p class="eyebrow">当前状态</p>
+      <h2>配置清单</h2>
+      <ul class="status-list">
+        <li><span id="appidStatus" class="dot"></span>AppID</li>
+        <li><span id="secretStatus" class="dot"></span>AppSecret</li>
+        <li><span id="aiStatus" class="dot"></span>AI 写稿 API</li>
+        <li><span id="imageStatus" class="dot optional"></span>AI 生图 API</li>
+        <li><span class="dot manual"></span>IP 白名单</li>
+      </ul>
+
+      <div class="side-divider"></div>
+
+      <p class="eyebrow">文章设置</p>
+      <ul class="status-list compact">
+        <li><span>范文</span><strong id="exemplarStatus">未选择</strong></li>
+        <li><span>模板</span><strong id="templateStatus">未选择</strong></li>
+        <li><span>插图</span><strong id="imageModeStatus">未选择</strong></li>
+      </ul>
+    </aside>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
