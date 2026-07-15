@@ -40,7 +40,8 @@ rewrite:
   auto_start: true
   base_url: "http://127.0.0.1:8282"
   model: "qwen3-merged-aigc_zhv3-Q4_K_M.gguf"
-  temperature: 0.62
+  temperature: 0.72
   top_p: 0.9
+  frequency_penalty: 0.35
   max_tokens: 1024
   timeout: 120

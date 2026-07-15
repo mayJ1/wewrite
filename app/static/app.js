@@ -109,7 +109,7 @@ const defaultArticleOptions = {
   exemplarFile: "auto",
   template: "studio-brief",
   imageMode: "photos",
-  rewriteEnabled: false,
+  rewriteEnabled: true,
 };
 
 const labels = Object.fromEntries(
@@ -138,7 +138,7 @@ const state = {
   style: null,
   publicIp: "",
   publicIpError: "",
-  articleOptions: { ...loadArticleOptions(), ...(restoredArticleSession?.articleOptions || {}) },
+  articleOptions: normalizeArticleOptions({ ...loadArticleOptions(), ...(restoredArticleSession?.articleOptions || {}) }),
   exemplars: [],
   exemplarsLoaded: false,
   previewTemplate: "",
@@ -249,6 +249,16 @@ function loadArticleOptions() {
   } catch {
     return { ...defaultArticleOptions };
   }
+}
+
+function normalizeArticleOptions(options = {}) {
+  const normalized = { ...defaultArticleOptions, ...options };
+  const migrationKey = "wewriteRewriteDefaultV2";
+  if (localStorage.getItem(migrationKey) !== "true") {
+    normalized.rewriteEnabled = true;
+    localStorage.setItem(migrationKey, "true");
+  }
+  return normalized;
 }
 
 async function ensureExemplarsLoaded() {
@@ -2595,7 +2605,12 @@ function renderGeneratedDraft(data) {
   const userErrors = Array.isArray(userIssues.errors) ? userIssues.errors : errors.map(formatIssue);
   const userWarnings = Array.isArray(userIssues.warnings) ? userIssues.warnings : warnings.map(formatIssue);
   const imageGenerationErrors = Array.isArray(data.image_generation?.errors) ? data.image_generation.errors : [];
-  const rewriteInfo = data.rewrite || null;
+  const rewriteInfo = data.rewrite || { enabled: Boolean(state.articleOptions.rewriteEnabled), changed_count: 0, errors: [] };
+  const rewriteStatusText = !rewriteInfo.enabled
+    ? "未开启"
+    : rewriteInfo.errors?.length
+      ? "未完成"
+      : `${rewriteInfo.changed_count || 0} 段`;
   const title = data.article?.meta?.title || state.writingRequest.topic || "生成文章";
   setHeader("文章已生成", "下面是本地模板排版后的预览。请先检查事实、措辞和图片位置，再进入后续编辑/发布步骤。");
   els.progressBar.style.width = "100%";
@@ -2611,12 +2626,14 @@ function renderGeneratedDraft(data) {
       <p><span>必须修改</span><strong>${userErrors.length} 项</strong></p>
       <p><span>发布前事项</span><strong>${userWarnings.length} 项</strong></p>
       <p><span>自动修复</span><strong>${data.repaired ? "已尝试" : "未触发"}</strong></p>
-      ${rewriteInfo ? `<p><span>自然润色</span><strong>${rewriteInfo.errors?.length ? "未完成" : `${rewriteInfo.changed_count || 0} 段`}</strong></p>` : ""}
+      <p><span>自然润色</span><strong>${rewriteStatusText}</strong></p>
       ${data.image_generation ? `<p><span>AI 正文插图</span><strong>${data.image_generation.generated_count || 0} 张</strong></p>` : ""}
     </div>
     ${userErrors.length ? renderIssueList("必须修改", userErrors, "error-note") : ""}
     ${userWarnings.length ? renderIssueList("发布前待处理", userWarnings, "") : ""}
     ${imageGenerationErrors.length ? renderIssueList("部分 AI 插图未完成", imageGenerationErrors, "error-note") : ""}
+    ${rewriteInfo.enabled && !rewriteInfo.errors?.length ? `<div class="note">自然润色已执行：本地模型分段处理了 ${Number(rewriteInfo.changed_count || 0)} 段正文，文章结构、图片和封面未交给模型改动。</div>` : ""}
+    ${rewriteInfo.errors?.length ? renderIssueList("自然润色未完成", rewriteInfo.errors, "error-note") : ""}
     ${renderImageWorkflow(data.article)}
     <div class="preview-frame-wrap">
       <iframe id="draftPreviewFrame" title="文章排版预览"></iframe>

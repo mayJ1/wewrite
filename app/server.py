@@ -1426,6 +1426,12 @@ class AppHandler(SimpleHTTPRequestHandler):
                     "changed_count": 0,
                     "errors": [str(exc)],
                 }
+        elif isinstance(result.get("article"), dict):
+            result["rewrite"] = {
+                "enabled": False,
+                "changed_count": 0,
+                "errors": [],
+            }
         result["html"] = rewrite_local_image_sources(str(result.get("html") or ""))
         result["user_issues"] = user_friendly_issues(
             [str(item) for item in result.get("errors") or []],

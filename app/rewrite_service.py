@@ -19,11 +19,14 @@ class RewriteServiceError(RuntimeError):
 DEFAULT_BASE_URL = "http://127.0.0.1:8282"
 DEFAULT_MODEL = "qwen3-merged-aigc_zhv3-Q4_K_M.gguf"
 DEFAULT_SYSTEM_PROMPT = (
-    "你是中文文本自然表达润色助手。请在不改变原意、不增加事实、不删减关键信息的前提下，"
-    "把文本改写得更自然、流畅、有人工编辑痕迹。减少模板化、机械重复和空泛套话，"
-    "句式可以适当变化。只输出改写后的正文，不要解释。"
+    "你是中文公众号文本的自然表达重写编辑。请在不改变原意、不增加事实、不删减关键信息的前提下，"
+    "重组句式和表达顺序，让文本更像人工编辑后的成稿。减少模板化、机械重复、过度工整和空泛套话；"
+    "可以合并或拆分句子，替换连接词，调整节奏，但不要加入素材外的新细节。只输出改写后的正文，不要解释。"
 )
-USER_PROMPT_PREFIX = "请自然润色下面这段公众号正文，保留原意与信息完整性，不新增事实：\n\n"
+USER_PROMPT_PREFIX = (
+    "请对下面这段公众号正文做自然表达重写。要求：保留事实和原意；不要新增人名、时间、地点、数字或引语；"
+    "明显改变机械句式和模板腔，让表达更像人工编辑后的自然文本：\n\n"
+)
 
 _SERVER_PROCESS: subprocess.Popen | None = None
 
@@ -85,10 +88,10 @@ def _rewrite_config(config: dict) -> dict:
         "model": str(raw.get("model") or DEFAULT_MODEL).strip(),
         "engine_dir": str(raw.get("engine_dir") or "").strip(),
         "timeout": int(raw.get("timeout") or 120),
-        "temperature": float(raw.get("temperature") or 0.62),
+        "temperature": float(raw.get("temperature") or 0.72),
         "top_p": float(raw.get("top_p") or 0.9),
         "max_tokens": int(raw.get("max_tokens") or 1024),
-        "frequency_penalty": float(raw.get("frequency_penalty") or 0.2),
+        "frequency_penalty": float(raw.get("frequency_penalty") or 0.35),
         "system_prompt": str(raw.get("system_prompt") or DEFAULT_SYSTEM_PROMPT).strip(),
     }
 
@@ -216,10 +219,10 @@ def _rewrite_text(text: str, *, rewrite_cfg: dict, base_url: str) -> str:
             {"role": "system", "content": rewrite_cfg.get("system_prompt") or DEFAULT_SYSTEM_PROMPT},
             {"role": "user", "content": f"{USER_PROMPT_PREFIX}{text}"},
         ],
-        "temperature": rewrite_cfg.get("temperature", 0.62),
+        "temperature": rewrite_cfg.get("temperature", 0.72),
         "top_p": rewrite_cfg.get("top_p", 0.9),
         "max_tokens": rewrite_cfg.get("max_tokens", 1024),
-        "frequency_penalty": rewrite_cfg.get("frequency_penalty", 0.2),
+        "frequency_penalty": rewrite_cfg.get("frequency_penalty", 0.35),
         "reasoning": "off",
         "reasoning_format": "none",
         "chat_template_kwargs": {"enable_thinking": False},
