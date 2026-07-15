@@ -1,0 +1,41 @@
+# Local credentials and account state
+/config.yaml
+/style.yaml
+/history.yaml
+data/
+output/
+lessons/
+
+# Build and distribution artifacts
+build/
+dist/
+*.zip
+*.exe
+*.dll
+*.gguf
+rewrite-engine/*
+!rewrite-engine/
+!rewrite-engine/README.md
+
+# Python environments and caches
+.build-venv/
+.python-packages/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Node dependencies and browser reports
+node_modules/
+playwright-report/
+test-results/
+
+# Runtime scratch files
+tmp/
+*.log
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
