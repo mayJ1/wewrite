@@ -21,12 +21,16 @@ DEFAULT_MODEL = "qwen3-merged-aigc_zhv3-Q4_K_M.gguf"
 DEFAULT_SYSTEM_PROMPT = (
     "你是中文公众号文本的自然表达重写编辑。请在不改变原意、不增加事实、不删减关键信息的前提下，"
     "重组句式和表达顺序，让文本更像人工编辑后的成稿。减少模板化、机械重复、过度工整和空泛套话；"
-    "可以合并或拆分句子，替换连接词，调整节奏，但不要加入素材外的新细节。只输出改写后的正文，不要解释。"
+    "可以合并或拆分句子，替换连接词，调整节奏，但不要加入素材外的新细节。"
+    "严禁输出任务说明、提示词、标签或解释，只能输出改写后的正文。"
 )
 USER_PROMPT_PREFIX = (
-    "请对下面这段公众号正文做自然表达重写。要求：保留事实和原意；不要新增人名、时间、地点、数字或引语；"
-    "明显改变机械句式和模板腔，让表达更像人工编辑后的自然文本：\n\n"
+    "任务：把 <article_text> 标签内的公众号正文改写得更自然。\n"
+    "硬性规则：保留事实和原意；不要新增人名、时间、地点、数字或引语；"
+    "不要复述本任务说明；不要输出 <article_text> 标签；只返回改写后的正文。\n\n"
+    "<article_text>\n"
 )
+USER_PROMPT_SUFFIX = "\n</article_text>"
 
 _SERVER_PROCESS: subprocess.Popen | None = None
 
@@ -52,20 +56,26 @@ def rewrite_article_text_fields(article: dict, *, config: dict, resource_root: P
 
     base_url = _ensure_server(rewrite_cfg, resource_root)
     targets = _collect_text_targets(article)
+    original_text = _article_plain_text(article, targets)
     rewritten = copy.deepcopy(article)
     errors: list[str] = []
     changed_count = 0
+    protected_count = 0
+    unchanged_count = 0
 
     for index, path in enumerate(targets, start=1):
         original = str(_get_path(rewritten, path) or "").strip()
         if not _should_rewrite(original):
+            protected_count += 1
             continue
         try:
             updated = _rewrite_text(original, rewrite_cfg=rewrite_cfg, base_url=base_url)
         except RewriteServiceError as exc:
             errors.append(f"第 {index} 段润色失败：{exc}")
             continue
-        if updated and updated != original:
+        if not updated or updated == original:
+            unchanged_count += 1
+        else:
             _set_path(rewritten, path, updated)
             changed_count += 1
 
@@ -74,7 +84,12 @@ def rewrite_article_text_fields(article: dict, *, config: dict, resource_root: P
         "base_url": base_url,
         "model": str(rewrite_cfg.get("model") or DEFAULT_MODEL),
         "target_count": len(targets),
+        "eligible_count": len(targets) - protected_count,
         "changed_count": changed_count,
+        "skipped_count": protected_count + unchanged_count,
+        "protected_count": protected_count,
+        "unchanged_count": unchanged_count,
+        "original_text": original_text,
         "errors": errors,
     }
 
@@ -217,7 +232,7 @@ def _rewrite_text(text: str, *, rewrite_cfg: dict, base_url: str) -> str:
         "model": str(rewrite_cfg.get("model") or DEFAULT_MODEL),
         "messages": [
             {"role": "system", "content": rewrite_cfg.get("system_prompt") or DEFAULT_SYSTEM_PROMPT},
-            {"role": "user", "content": f"{USER_PROMPT_PREFIX}{text}"},
+            {"role": "user", "content": f"{USER_PROMPT_PREFIX}{text}{USER_PROMPT_SUFFIX}"},
         ],
         "temperature": rewrite_cfg.get("temperature", 0.72),
         "top_p": rewrite_cfg.get("top_p", 0.9),
@@ -247,9 +262,9 @@ def _rewrite_text(text: str, *, rewrite_cfg: dict, base_url: str) -> str:
 
     message = (data.get("choices") or [{}])[0].get("message") or {}
     content = _pick_text(message.get("content")) or _pick_text(message.get("reasoning_content"))
-    content = _strip_think_tags(content)
+    content = _clean_rewrite_output(_strip_think_tags(content))
     if not content:
-        raise RewriteServiceError("模型返回为空。")
+        return text
     return content
 
 
@@ -267,9 +282,90 @@ def _strip_think_tags(text: str) -> str:
     return re.sub(r"</?think>", "", re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.I), flags=re.I).strip()
 
 
+def _clean_rewrite_output(text: str) -> str:
+    import re
+
+    cleaned = text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    cleaned = re.sub(r"^```(?:\w+)?\s*|\s*```$", "", cleaned).strip()
+    cleaned = re.sub(r"<\s*/?\s*article_text\s*>", "", cleaned, flags=re.I).strip()
+
+    instruction_prefix_patterns = (
+        r"^\s*任务[是就：:\s]*把[\s\S]{0,700}?(?:只|仅)(?:能|需|要)?(?:返回|输出)[^。！？\n]{0,80}改写后的正文[。！？；;，,\s]*",
+        r"^\s*请对下面这段[\s\S]{0,700}?(?:只|仅)(?:能|需|要)?(?:返回|输出)[^。！？\n]{0,80}改写后的正文[。！？；;，,\s]*",
+        r"^\s*硬性规则[：:\s][\s\S]{0,500}?(?:只|仅)(?:能|需|要)?(?:返回|输出)[^。！？\n]{0,80}改写后的正文[。！？；;，,\s]*",
+        r"^\s*要求[：:\s][\s\S]{0,500}?(?:只|仅)(?:能|需|要)?(?:返回|输出)[^。！？\n]{0,80}改写后的正文[。！？；;，,\s]*",
+    )
+    for pattern in instruction_prefix_patterns:
+        cleaned = re.sub(pattern, "", cleaned, count=1, flags=re.I).strip()
+
+    for marker in (
+        "只能返回改写后的正文。",
+        "只返回改写后的正文。",
+        "只输出改写后的正文，不要解释。",
+        "只输出改写后的正文。",
+        "不要解释。",
+        "自然文本：",
+    ):
+        marker_index = cleaned.find(marker)
+        if 0 <= marker_index < 320:
+            cleaned = cleaned[marker_index + len(marker) :].strip()
+
+    prompt_markers = (
+        "请对下面这段公众号正文",
+        "请对下面这段",
+        "任务：把",
+        "任务是把",
+        "任务就是把",
+        "硬性规则：",
+        "硬性规则是",
+        "要求：保留事实",
+        "保留事实和原意",
+        "不能添加人名",
+        "不能加入人名",
+        "不能重复本任务说明",
+        "不能复述本任务说明",
+        "不能输出标签",
+        "不能输出 <article_text>",
+        "不能输出<article_text>",
+        "不要新增人名",
+        "明显改变机械句式",
+        "只输出改写后的正文",
+        "只返回改写后的正文",
+        "只能返回改写后的正文",
+        "不要复述本任务说明",
+        "自然表达重写",
+        "改写提示词",
+    )
+    lines = []
+    for line in cleaned.split("\n"):
+        stripped = line.strip()
+        if not stripped:
+            lines.append(line)
+            continue
+        if any(marker in stripped for marker in prompt_markers):
+            continue
+        lines.append(line)
+    cleaned = "\n".join(lines).strip()
+
+    cleaned = re.sub(r"^(?:改写后的正文|正文|输出)[:：]\s*", "", cleaned).strip()
+    return cleaned
+
+
 def _should_rewrite(text: str) -> bool:
     cleaned = text.strip()
     return len(cleaned) >= 18 and not cleaned.startswith(("http://", "https://", "!["))
+
+
+def _article_plain_text(article: dict, targets: list[list[Any]]) -> str:
+    parts: list[str] = []
+    title = article.get("meta", {}).get("title") if isinstance(article.get("meta"), dict) else ""
+    if isinstance(title, str) and title.strip():
+        parts.append(title.strip())
+    for path in targets:
+        value = _get_path(article, path)
+        if isinstance(value, str) and value.strip():
+            parts.append(value.strip())
+    return "\n\n".join(parts).strip()
 
 
 def _collect_text_targets(article: dict) -> list[list[Any]]:

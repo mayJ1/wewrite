@@ -2605,12 +2605,25 @@ function renderGeneratedDraft(data) {
   const userErrors = Array.isArray(userIssues.errors) ? userIssues.errors : errors.map(formatIssue);
   const userWarnings = Array.isArray(userIssues.warnings) ? userIssues.warnings : warnings.map(formatIssue);
   const imageGenerationErrors = Array.isArray(data.image_generation?.errors) ? data.image_generation.errors : [];
-  const rewriteInfo = data.rewrite || { enabled: Boolean(state.articleOptions.rewriteEnabled), changed_count: 0, errors: [] };
+  const rewriteInfo = data.rewrite || { enabled: Boolean(state.articleOptions.rewriteEnabled), changed_count: 0, skipped_count: 0, errors: [] };
+  const rewriteChangedCount = Number(rewriteInfo.changed_count || 0);
+  const rewriteSkippedCount = Number(rewriteInfo.skipped_count || 0);
+  const rewriteTargetCount = Number(rewriteInfo.target_count || rewriteChangedCount + rewriteSkippedCount);
+  const rewriteProtectedCount = Number(rewriteInfo.protected_count || 0);
+  const rewriteUnchangedCount = Number(rewriteInfo.unchanged_count || Math.max(0, rewriteSkippedCount - rewriteProtectedCount));
+  const rewriteOriginalText = typeof rewriteInfo.original_text === "string" ? rewriteInfo.original_text.trim() : "";
   const rewriteStatusText = !rewriteInfo.enabled
     ? "未开启"
     : rewriteInfo.errors?.length
       ? "未完成"
-      : `${rewriteInfo.changed_count || 0} 段`;
+      : `${rewriteChangedCount} 段`;
+  const rewriteKeepParts = [
+    rewriteProtectedCount ? `${rewriteProtectedCount} 个短文本/无需处理` : "",
+    rewriteUnchangedCount ? `${rewriteUnchangedCount} 个模型返回无明显变化` : "",
+  ].filter(Boolean).join("，");
+  const rewriteNote = rewriteSkippedCount
+    ? `自然润色已执行：本次识别到 ${rewriteTargetCount} 个文字块，改写了 ${rewriteChangedCount} 个，${rewriteSkippedCount} 个保持原文${rewriteKeepParts ? `（${rewriteKeepParts}）` : ""}。文章结构、图片和封面未交给模型改动。`
+    : `自然润色已执行：本次识别到 ${rewriteTargetCount} 个文字块，已改写 ${rewriteChangedCount} 个。文章结构、图片和封面未交给模型改动。`;
   const title = data.article?.meta?.title || state.writingRequest.topic || "生成文章";
   setHeader("文章已生成", "下面是本地模板排版后的预览。请先检查事实、措辞和图片位置，再进入后续编辑/发布步骤。");
   els.progressBar.style.width = "100%";
@@ -2632,7 +2645,8 @@ function renderGeneratedDraft(data) {
     ${userErrors.length ? renderIssueList("必须修改", userErrors, "error-note") : ""}
     ${userWarnings.length ? renderIssueList("发布前待处理", userWarnings, "") : ""}
     ${imageGenerationErrors.length ? renderIssueList("部分 AI 插图未完成", imageGenerationErrors, "error-note") : ""}
-    ${rewriteInfo.enabled && !rewriteInfo.errors?.length ? `<div class="note">自然润色已执行：本地模型分段处理了 ${Number(rewriteInfo.changed_count || 0)} 段正文，文章结构、图片和封面未交给模型改动。</div>` : ""}
+    ${rewriteInfo.enabled && !rewriteInfo.errors?.length ? `<div class="note">${rewriteNote}</div>` : ""}
+    ${rewriteOriginalText ? `<div class="rewrite-compare-actions"><button id="viewRewriteOriginalButton" type="button" class="secondary">查看改写前原文</button></div>` : ""}
     ${rewriteInfo.errors?.length ? renderIssueList("自然润色未完成", rewriteInfo.errors, "error-note") : ""}
     ${renderImageWorkflow(data.article)}
     <div class="preview-frame-wrap">
@@ -2654,6 +2668,9 @@ function renderGeneratedDraft(data) {
   const frame = document.querySelector("#draftPreviewFrame");
   frame.srcdoc = data.html || "<p>没有可预览的 HTML。</p>";
   bindImageWorkflow();
+  document.querySelector("#viewRewriteOriginalButton")?.addEventListener("click", () => {
+    showRewriteOriginalModal(rewriteOriginalText);
+  });
   document.querySelector("#pushDraftButton")?.addEventListener("click", pushToWeChatDraft);
   document.querySelector("#revisionRequestInput")?.addEventListener("input", (event) => {
     state.revisionRequest = event.target.value;
@@ -2661,6 +2678,28 @@ function renderGeneratedDraft(data) {
   });
   setMessage(data.ok ? "文章生成并通过本地校验。" : "文章已生成，但有校验问题，请先检查。", data.ok ? "ok" : "error");
   saveCurrentArticleSession();
+}
+
+function showRewriteOriginalModal(text) {
+  const modal = document.createElement("div");
+  modal.className = "preview-modal rewrite-original-modal";
+  modal.innerHTML = `
+    <div class="preview-backdrop" data-close="true"></div>
+    <section class="preview-dialog rewrite-original-dialog" role="dialog" aria-modal="true" aria-label="改写前原文">
+      <header class="rewrite-original-header">
+        <div>
+          <span>改写前原文</span>
+          <strong>AI 初稿文字</strong>
+        </div>
+        <button type="button" class="mini" data-close="true">关闭</button>
+      </header>
+      <div class="rewrite-original-body">${escapeHtml(text)}</div>
+    </section>
+  `;
+  document.body.appendChild(modal);
+  modal.addEventListener("click", (event) => {
+    if (event.target.closest("[data-close='true']") || event.target === modal) modal.remove();
+  });
 }
 
 async function pushToWeChatDraft() {
