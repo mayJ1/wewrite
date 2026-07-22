@@ -4,6 +4,10 @@
 文章改写skill（内置了格式工坊的开源改写模型，提高人工创作特征，降低AI味）已接入到此全流程自动化智能体工具中。
 tips:改写结果仅供参考，不保证能过朱雀，如有硬性需求需要稳定通过朱雀检测可联系我（v：mayj4895126）获取接了付费改写模型接口的skill。
 
+科学上网工具：https://okztwo.net/#/register?code=IsdnWURR
+
+博主实测下来的改写工具推荐（稳过朱雀）：https://www.qqat.cn/?agent=N3K4ZWWE
+
 点击右侧Releases下载发行版
 
 # 四个核心功能
