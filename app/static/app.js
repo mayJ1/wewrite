@@ -154,6 +154,19 @@ const state = {
   firstVisit: localStorage.getItem("wewriteOnboardingComplete") !== "true",
   draftHistory: [],
   editLearning: { rules: [], sessions: [] },
+  hotspots: {
+    items: [],
+    recommendedItems: [],
+    sourceStatus: [],
+    timestamp: "",
+    source: "all",
+    query: "",
+    view: "recommended",
+    recommendationLoading: false,
+    recommendationMode: "",
+    recommendationWarning: "",
+    recommendationProfile: null,
+  },
 };
 
 const els = {
@@ -472,9 +485,11 @@ function updateNav(page) {
     button.classList.toggle("active", button.dataset.page === page);
   });
   els.settingsButton.classList.toggle("active", page === "settings");
+  document.querySelector(".setup-shell")?.classList.toggle("hotspots-workspace", page === "hotspots");
 }
 
 function currentWorkspaceNavPage() {
+  if (state.phase === "hotspots") return "hotspots";
   if (state.phase === "styles") return "styles";
   if (state.phase === "history") return "history";
   return "article";
@@ -3368,6 +3383,299 @@ async function renderDraftHistoryPage() {
   }
 }
 
+function formatHotspotTime(value) {
+  if (!value) return "刚刚";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function renderHotspotSourceStatus() {
+  const statuses = state.hotspots.sourceStatus || [];
+  if (!statuses.length) {
+    return ["微博", "今日头条", "百度"].map((name) => `
+      <span class="hotspot-source-state loading"><i></i>${name}连接中</span>
+    `).join("");
+  }
+  return statuses.map((item) => `
+    <span class="hotspot-source-state ${item.ok ? "ready" : "failed"}" title="${escapeAttr(item.error || "")}">
+      <i></i>${escapeHtml(item.name)}${item.ok ? ` · ${Number(item.count || 0)} 条` : " · 获取失败"}
+    </span>
+  `).join("");
+}
+
+function filteredHotspots() {
+  const source = state.hotspots.source;
+  const query = state.hotspots.query.trim().toLowerCase();
+  const activeItems = state.hotspots.view === "recommended"
+    ? state.hotspots.recommendedItems
+    : state.hotspots.items;
+  return activeItems.filter((item) => {
+    const sourceMatched = source === "all" || (item.sources || []).includes(source);
+    const queryMatched = !query || String(item.title || "").toLowerCase().includes(query);
+    return sourceMatched && queryMatched;
+  });
+}
+
+function renderHotspotResults() {
+  const result = document.querySelector("#hotspotResults");
+  const count = document.querySelector("#hotspotResultCount");
+  if (!result) return;
+  if (state.hotspots.view === "recommended" && state.hotspots.recommendationLoading) {
+    if (count) count.textContent = "分析中";
+    result.innerHTML = `
+      <div class="hotspot-loading">
+        <span></span>
+        <strong>正在结合账号画像分析热点...</strong>
+        <small>会综合热点热度、账号相关度和内容切入价值。</small>
+      </div>
+    `;
+    return;
+  }
+  const items = filteredHotspots();
+  if (count) count.textContent = `${items.length} 条结果`;
+  if (!items.length) {
+    result.innerHTML = `
+      <div class="hotspot-empty">
+        <strong>${state.hotspots.view === "recommended" ? "暂时没有合适的推荐热点" : "没有符合条件的热点"}</strong>
+        <span>${state.hotspots.view === "recommended" ? "可以切换到全网热榜，或在设置中完善账号内容方向。" : "换个平台或关键词再看看。"}</span>
+      </div>
+    `;
+    return;
+  }
+  result.innerHTML = items.map((item) => {
+    const itemIndex = items.indexOf(item);
+    const details = Array.isArray(item.source_details) ? item.source_details : [];
+    const firstUrl = details.find((detail) => detail.url)?.url || item.url || "";
+    const isRecommended = state.hotspots.view === "recommended";
+    return `
+      <article class="hotspot-row ${isRecommended ? "recommended" : ""}">
+        <div class="hotspot-rank ${itemIndex < 3 ? `top-${itemIndex + 1}` : ""}">${itemIndex + 1}</div>
+        <div class="hotspot-main">
+          <div class="hotspot-title-line">
+            <h3>${escapeHtml(item.title || "未命名热点")}</h3>
+            ${Number(item.platform_count || 1) > 1 ? `<span class="cross-platform">${Number(item.platform_count)} 平台共同上榜</span>` : ""}
+            ${isRecommended ? `<span class="recommendation-score">推荐 ${Math.round(Number(item.recommendation_score || 0))}</span>` : ""}
+          </div>
+          <div class="hotspot-meta">
+            ${(item.sources || [item.source]).map((sourceName) => `<span class="source-badge source-${sourceName === "微博" ? "weibo" : sourceName === "百度" ? "baidu" : "toutiao"}">${escapeHtml(sourceName)}</span>`).join("")}
+            <span>热点热度 ${Math.round(Number(item.score || item.hot_normalized || 0))}</span>
+            ${isRecommended && item.matched_topics?.length ? `<span>匹配 ${escapeHtml(item.matched_topics.join("、"))}</span>` : ""}
+            ${item.description ? `<span>${escapeHtml(item.description)}</span>` : ""}
+          </div>
+          ${isRecommended ? `
+            <div class="hotspot-recommendation-copy">
+              <p><strong>推荐理由</strong><span>${escapeHtml(item.recommendation_reason || "符合当前账号内容方向")}</span></p>
+              <p><strong>建议角度</strong><span>${escapeHtml(item.suggested_angle || "结合账号受众选择实用切入角度")}</span></p>
+              ${item.risk_notice ? `<p class="risk-${escapeAttr(item.risk_level || "medium")}"><strong>创作提醒</strong><span>${escapeHtml(item.risk_notice)}</span></p>` : ""}
+            </div>
+          ` : ""}
+        </div>
+        <div class="hotspot-actions">
+          ${firstUrl ? `<a class="hotspot-source-link" href="${escapeAttr(firstUrl)}" target="_blank" rel="noopener noreferrer">查看来源</a>` : ""}
+          <button type="button" data-hotspot-use="${escapeAttr(item.hotspot_id || String(itemIndex))}">作为选题</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+  result.querySelectorAll("[data-hotspot-use]").forEach((button) => {
+    button.addEventListener("click", () => useHotspotForArticle(button.dataset.hotspotUse));
+  });
+}
+
+function renderRecommendationProfile() {
+  const profile = state.hotspots.recommendationProfile || state.style || {};
+  const topics = Array.isArray(profile.topics) ? profile.topics : [];
+  const modeLabel = {
+    ai: "AI 语义推荐",
+    local: "本地画像匹配",
+    unavailable: "等待完善画像",
+  }[state.hotspots.recommendationMode] || "画像分析中";
+  return `
+    <section class="hotspot-profile-summary">
+      <div>
+        <span class="recommendation-mode">${escapeHtml(modeLabel)}</span>
+        <strong>${escapeHtml(profile.name || "当前公众号")}</strong>
+        <p>${escapeHtml([profile.industry, ...topics].filter(Boolean).join(" · ") || "尚未填写行业和内容方向")}</p>
+      </div>
+      <span>推荐分 = 热度 30% + 相关度 40% + 切入价值 30%</span>
+    </section>
+  `;
+}
+
+function renderHotspotPageShell(loading = false) {
+  updateNav("hotspots");
+  setHeader("热点抓取", "汇总微博、今日头条和百度实时榜单，从正在发生的话题里找到公众号选题。");
+  els.progressBar.style.width = loading ? "45%" : "100%";
+  els.backButton.hidden = true;
+  els.skipButton.hidden = true;
+  els.nextButton.hidden = true;
+  const total = state.hotspots.items.length;
+  els.panel.innerHTML = `
+    <section class="hotspot-overview">
+      <div>
+        <p class="eyebrow">实时榜单</p>
+        <h2>${loading ? "正在连接热点源" : `已汇总 ${total} 个热点`}</h2>
+        <p>${loading ? "三个平台正在并发获取，通常几秒内完成。" : `最近更新 ${escapeHtml(formatHotspotTime(state.hotspots.timestamp))}，相同标题会合并并保留全部来源。`}</p>
+      </div>
+      <button id="refreshHotspotsButton" class="hotspot-refresh" type="button" ${loading ? "disabled" : ""}>${loading ? "抓取中..." : "刷新榜单"}</button>
+    </section>
+    <div class="hotspot-source-strip">${renderHotspotSourceStatus()}</div>
+    <div class="hotspot-view-tabs" role="tablist" aria-label="热点榜单视图">
+      <button type="button" role="tab" data-hotspot-view="recommended" class="${state.hotspots.view === "recommended" ? "active" : ""}" aria-selected="${state.hotspots.view === "recommended"}">为我推荐</button>
+      <button type="button" role="tab" data-hotspot-view="all" class="${state.hotspots.view === "all" ? "active" : ""}" aria-selected="${state.hotspots.view === "all"}">全网热榜</button>
+    </div>
+    ${state.hotspots.view === "recommended" ? renderRecommendationProfile() : ""}
+    <section class="hotspot-toolbar" aria-label="热点筛选">
+      <div class="hotspot-segments" role="group" aria-label="平台">
+        ${["all", "微博", "今日头条", "百度"].map((sourceName) => `
+          <button type="button" data-hotspot-source="${sourceName}" class="${state.hotspots.source === sourceName ? "active" : ""}" aria-pressed="${state.hotspots.source === sourceName}">
+            ${sourceName === "all" ? "全部平台" : sourceName}
+          </button>
+        `).join("")}
+      </div>
+      <label class="hotspot-search">
+        <span>搜索</span>
+        <input id="hotspotSearchInput" type="search" value="${escapeAttr(state.hotspots.query)}" placeholder="输入关键词筛选">
+      </label>
+    </section>
+    <div class="hotspot-result-head">
+      <strong>${state.hotspots.view === "recommended" ? "账号推荐" : "综合榜单"}</strong>
+      <span id="hotspotResultCount">${total} 条结果</span>
+    </div>
+    <div id="hotspotResults" class="hotspot-results">
+      ${loading ? `<div class="hotspot-loading"><span></span><strong>正在抓取实时热点...</strong></div>` : ""}
+    </div>
+  `;
+  document.querySelector("#refreshHotspotsButton")?.addEventListener("click", () => renderHotspotsPage(true));
+  document.querySelectorAll("[data-hotspot-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.hotspots.view = button.dataset.hotspotView;
+      renderHotspotPageShell(false);
+      if (state.hotspots.view === "recommended" && !state.hotspots.recommendedItems.length && !state.hotspots.recommendationLoading) {
+        loadHotspotRecommendations(false);
+      }
+    });
+  });
+  document.querySelectorAll("[data-hotspot-source]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.hotspots.source = button.dataset.hotspotSource;
+      document.querySelectorAll("[data-hotspot-source]").forEach((item) => {
+        item.classList.toggle("active", item === button);
+        item.setAttribute("aria-pressed", String(item === button));
+      });
+      renderHotspotResults();
+    });
+  });
+  document.querySelector("#hotspotSearchInput")?.addEventListener("input", (event) => {
+    state.hotspots.query = event.target.value;
+    renderHotspotResults();
+  });
+  if (!loading) renderHotspotResults();
+}
+
+async function renderHotspotsPage(forceRefresh = false) {
+  state.phase = "hotspots";
+  renderHotspotPageShell(true);
+  setMessage("正在获取微博、今日头条和百度热点。");
+  try {
+    const data = await fetchJson(`/api/hotspots?limit=60${forceRefresh ? "&refresh=1" : ""}`);
+    state.hotspots.items = Array.isArray(data.items) ? data.items : [];
+    state.hotspots.sourceStatus = Array.isArray(data.source_status) ? data.source_status : [];
+    state.hotspots.timestamp = data.timestamp || "";
+    if (forceRefresh) state.hotspots.recommendedItems = [];
+    state.hotspots.recommendationLoading = state.hotspots.view === "recommended";
+    renderHotspotPageShell(false);
+    if (data.error) {
+      setMessage(data.error, "error");
+    } else if ((data.sources_failed || []).length) {
+      setMessage(`部分平台暂时不可用：${data.sources_failed.join("、")}。其余榜单已正常显示。`, "error");
+    } else {
+      setMessage(data.cached ? "已显示最近抓取的热点。" : "热点榜单已更新。", "ok");
+    }
+    if (state.hotspots.view === "recommended") {
+      await loadHotspotRecommendations(forceRefresh);
+    }
+  } catch (error) {
+    state.hotspots.items = [];
+    state.hotspots.sourceStatus = [];
+    renderHotspotPageShell(false);
+    setMessage(error.message || "热点抓取失败，请稍后重试。", "error");
+  }
+}
+
+async function loadHotspotRecommendations(forceRefresh = false) {
+  if (!isStyleReady()) {
+    state.hotspots.recommendationLoading = false;
+    state.hotspots.recommendationMode = "unavailable";
+    state.hotspots.recommendationWarning = "请先在设置中完善公众号行业和内容方向。";
+    renderHotspotPageShell(false);
+    setMessage(state.hotspots.recommendationWarning, "error");
+    return;
+  }
+  state.hotspots.recommendationLoading = true;
+  if (state.hotspots.view === "recommended") renderHotspotResults();
+  try {
+    const data = await fetchJson("/api/hotspots/recommend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh: forceRefresh }),
+    });
+    state.hotspots.recommendedItems = Array.isArray(data.items) ? data.items : [];
+    state.hotspots.recommendationMode = data.mode || "local";
+    state.hotspots.recommendationWarning = data.warning || "";
+    state.hotspots.recommendationProfile = data.profile || null;
+    state.hotspots.recommendationLoading = false;
+    renderHotspotPageShell(false);
+    if (data.warning) {
+      setMessage(data.warning, "error");
+    } else {
+      setMessage(data.cached ? "已显示账号画像推荐结果。" : "已根据账号画像完成热点推荐。", "ok");
+    }
+  } catch (error) {
+    state.hotspots.recommendationLoading = false;
+    state.hotspots.recommendationWarning = error.message || "账号画像推荐失败。";
+    renderHotspotPageShell(false);
+    setMessage(state.hotspots.recommendationWarning, "error");
+  }
+}
+
+function useHotspotForArticle(hotspotId) {
+  const item = [...state.hotspots.recommendedItems, ...state.hotspots.items]
+    .find((candidate, index) => String(candidate.hotspot_id || index) === String(hotspotId));
+  if (!item) return;
+  if (state.firstVisit || !isSetupReady() || !isStyleReady()) {
+    renderSettingsPage();
+    setMessage("热点已选中。请先完成公众号和写作配置，再把它带入文章工作台。", "error");
+    return;
+  }
+  if (hasCurrentArticleWorkspace() && !confirm("将以这个热点创建新的文章工作区。当前未生成的填写内容会被清空，是否继续？")) {
+    return;
+  }
+  const sources = (item.sources || [item.source]).filter(Boolean).join("、");
+  const recommendationContext = item.suggested_angle
+    ? `建议从“${item.suggested_angle}”这一角度展开。`
+    : "";
+  startArticleWizard();
+  state.writingRequest = {
+    prompt: `围绕热点“${item.title}”策划并撰写一篇微信公众号文章。该话题当前出现在${sources}。${recommendationContext}请结合公众号定位，只写能够确认的事实，不编造数据、引语或细节。`,
+    topic: item.title,
+    focus: [item.suggested_angle, `热点来源：${sources}`].filter(Boolean).join("；"),
+    activity_time: "",
+    activity_location: "",
+    avoid: "不编造数据、引语或未经确认的细节",
+  };
+  saveWritingRequest();
+  saveCurrentArticleSession();
+  setMessage(`已把“${item.title}”带入新文章，完成文章设置后即可检查和修改写作要求。`, "ok");
+}
+
 async function deleteDraftHistoryRecord(recordId) {
   if (!recordId) return;
   const record = state.draftHistory.find((item) => item.id === recordId);
@@ -3500,6 +3808,9 @@ function goBack() {
   if (state.phase === "history") {
     return;
   }
+  if (state.phase === "hotspots") {
+    return;
+  }
   if (state.phase === "setup") {
     if (state.current === 0) return;
     state.current -= 1;
@@ -3547,6 +3858,10 @@ function goBack() {
 function bindEvents() {
   els.navButtons.forEach((button) => {
     button.addEventListener("click", () => {
+      if (button.dataset.page === "hotspots") {
+        renderHotspotsPage();
+        return;
+      }
       if (state.firstVisit) {
         renderSettingsPage();
         setMessage("请先完成首次设置，再开始使用其他功能。", "error");

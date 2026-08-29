@@ -26,6 +26,8 @@ a = Analysis(
         "extract_exemplar",
         "fetch_article",
         "humanness_score",
+        "hotspot_service",
+        "hotspot_recommendation_service",
         "import_materials",
         "publisher",
         "rewrite_service",

@@ -71,6 +71,8 @@ from edit_learning_service import (  # noqa: E402
     sync_wechat_draft_and_learn,
 )
 from image_service import ImageServiceError, generate_cover_image  # noqa: E402
+from hotspot_service import fetch_hotspots  # noqa: E402
+from hotspot_recommendation_service import recommend_hotspots  # noqa: E402
 from rewrite_service import RewriteServiceError, rewrite_article_text_fields, rewrite_status  # noqa: E402
 from extract_exemplar import extract_exemplar as analyze_exemplar, save_exemplar  # noqa: E402
 from fetch_article import fetch_article  # noqa: E402
@@ -987,6 +989,11 @@ class AppHandler(SimpleHTTPRequestHandler):
                 return json_response(self, {"style": public_style()})
             if path == "/api/public-ip":
                 return json_response(self, {"ip": fetch_public_ip()})
+            if path == "/api/hotspots":
+                query = parse_qs(parsed.query)
+                limit = int(query.get("limit", ["60"])[0])
+                force_refresh = query.get("refresh", ["0"])[0] == "1"
+                return json_response(self, fetch_hotspots(limit=limit, force_refresh=force_refresh))
             if path == "/api/templates":
                 return self.handle_templates()
             if path == "/api/exemplars":
@@ -1036,6 +1043,8 @@ class AppHandler(SimpleHTTPRequestHandler):
                 return self.handle_exemplar_delete()
             if path == "/api/materials/upload":
                 return self.handle_material_upload()
+            if path == "/api/hotspots/recommend":
+                return self.handle_hotspot_recommendations()
             if path == "/api/images/cover":
                 return self.handle_generate_cover()
             if path == "/api/images/cover-upload":
@@ -1053,6 +1062,18 @@ class AppHandler(SimpleHTTPRequestHandler):
             return text_response(self, "Not found", HTTPStatus.NOT_FOUND)
         except Exception as exc:
             self.handle_error(exc)
+
+    def handle_hotspot_recommendations(self) -> None:
+        payload = read_json_body(self)
+        force_refresh = bool(payload.get("refresh"))
+        hotspots = fetch_hotspots(limit=100, force_refresh=False)
+        result = recommend_hotspots(
+            hotspot_payload=hotspots,
+            style=load_style(),
+            config=load_config(),
+            force_refresh=force_refresh,
+        )
+        json_response(self, result)
 
     def handle_templates(self) -> None:
         templates = []
