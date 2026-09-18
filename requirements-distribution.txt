@@ -1,0 +1,9 @@
+PyInstaller>=6.10,<7
+pywebview>=6,<7
+PyYAML>=6,<7
+requests>=2.31,<3
+beautifulsoup4>=4.12,<5
+python-docx>=1.1,<2
+Pillow>=10,<12
+pdfplumber>=0.11,<1
+PyPDF2>=3,<4

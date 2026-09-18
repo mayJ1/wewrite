@@ -1,0 +1,30 @@
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(0, 4, 0, 0),
+    prodvers=(0, 4, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        u'080404b0',
+        [
+          StringStruct(u'CompanyName', u'WeWrite'),
+          StringStruct(u'FileDescription', u'WeWrite portable desktop client'),
+          StringStruct(u'FileVersion', u'0.4.0.0'),
+          StringStruct(u'InternalName', u'WeWrite'),
+          StringStruct(u'LegalCopyright', u'Copyright (c) WeWrite'),
+          StringStruct(u'OriginalFilename', u'WeWrite.exe'),
+          StringStruct(u'ProductName', u'WeWrite'),
+          StringStruct(u'ProductVersion', u'0.4.0.0')
+        ]
+      )
+    ]),
+    VarFileInfo([VarStruct(u'Translation', [2052, 1200])])
+  ]
+)

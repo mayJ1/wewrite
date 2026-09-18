@@ -65,6 +65,18 @@ class FailingProvider:
 
 
 class HotspotRecommendationTests(unittest.TestCase):
+    def test_track_only_profile_can_recommend_hotspots(self) -> None:
+        style = {"track": "教育校园", "blacklist": {"words": [], "topics": []}}
+        items = [
+            hotspot("ent", "明星演唱会登上热搜", 100),
+            hotspot("edu", "学生暑假参加科技实践活动", 72),
+        ]
+
+        result = local_recommendations(items, style, limit=2)
+
+        self.assertEqual(result[0]["hotspot_id"], "edu")
+        self.assertIn("学生", result[0]["matched_topics"])
+
     def test_local_profile_prefers_matching_education_topic(self) -> None:
         items = [
             hotspot("ent", "明星演唱会登上热搜", 100),

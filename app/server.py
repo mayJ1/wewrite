@@ -771,12 +771,15 @@ def split_list_value(value: object) -> list[str]:
 def public_style(style: dict | None = None) -> dict:
     data = style if style is not None else load_style()
     blacklist = data.get("blacklist") if isinstance(data.get("blacklist"), dict) else {}
+    topics = data.get("topics") if isinstance(data.get("topics"), list) else []
+    track = str(data.get("track") or data.get("industry") or (topics[0] if topics else ""))
     return {
         "exists": STYLE_PATH.exists(),
+        "track": track,
         "name": str(data.get("name") or ""),
         "full_name": str(data.get("full_name") or ""),
         "industry": str(data.get("industry") or ""),
-        "topics": data.get("topics") if isinstance(data.get("topics"), list) else [],
+        "topics": topics,
         "tone": str(data.get("tone") or ""),
         "writing_persona": str(data.get("writing_persona") or "warm-editor"),
         "target_audience": str(data.get("target_audience") or ""),
@@ -981,6 +984,8 @@ class AppHandler(SimpleHTTPRequestHandler):
         try:
             if path == "/":
                 return self.serve_static("index.html")
+            if path == "/favicon.ico":
+                return self.serve_static("favicon.ico")
             if path.startswith("/static/"):
                 return self.serve_static(path.removeprefix("/static/"))
             if path == "/api/config":
@@ -1139,6 +1144,7 @@ class AppHandler(SimpleHTTPRequestHandler):
         style = load_style()
 
         string_fields = [
+            "track",
             "name",
             "full_name",
             "industry",
@@ -1167,17 +1173,15 @@ class AppHandler(SimpleHTTPRequestHandler):
         if blacklist:
             style["blacklist"] = blacklist
 
-        if not str(style.get("name") or "").strip():
-            raise ValueError("请填写公众号名称。")
-        if not str(style.get("industry") or "").strip():
-            raise ValueError("请填写行业/机构类型。")
-        if not style.get("topics"):
-            raise ValueError("请至少填写一个内容方向。")
-        if not str(style.get("tone") or "").strip():
-            raise ValueError("请填写写作风格。")
+        legacy_track = str(style.get("industry") or "").strip()
+        if not legacy_track and isinstance(style.get("topics"), list) and style["topics"]:
+            legacy_track = str(style["topics"][0]).strip()
+        if not str(style.get("track") or legacy_track).strip():
+            raise ValueError("请选择或输入公众号赛道。")
 
         style.setdefault("writing_persona", "warm-editor")
         style.setdefault("template", "studio-brief")
+        style.setdefault("tone", "自然、清晰、有人工编辑感")
         style.setdefault("author", style.get("name") or "编辑部")
 
         save_style(style)

@@ -10,13 +10,11 @@ datas = [
     (str(root / "personas"), "personas"),
     (str(root / "packaging" / "default-data"), "packaging/default-data"),
     (str(root / "config.example.yaml"), "."),
+    (str(root / "packaging" / "wewrite.ico"), "packaging"),
 ]
-rewrite_engine = root / "rewrite-engine"
-if rewrite_engine.exists():
-    datas.append((str(rewrite_engine), "rewrite-engine"))
 
 a = Analysis(
-    [str(root / "app" / "server.py")],
+    [str(root / "app" / "desktop.py")],
     pathex=[str(root / "app"), str(root / "scripts"), str(root)],
     binaries=[],
     datas=datas,
@@ -50,23 +48,15 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    [],
-    exclude_binaries=True,
+    a.binaries,
+    a.datas,
     name="WeWrite",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name="WeWrite",
+    icon=str(root / "packaging" / "wewrite.ico"),
+    version=str(root / "packaging" / "wewrite-version.txt"),
 )

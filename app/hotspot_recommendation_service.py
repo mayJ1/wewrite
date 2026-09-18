@@ -81,7 +81,11 @@ def _profile(style: dict[str, Any]) -> dict[str, Any]:
     topics = style.get("topics") if isinstance(style.get("topics"), list) else []
     blacklist_words = blacklist.get("words") if isinstance(blacklist.get("words"), list) else []
     blacklist_topics = blacklist.get("topics") if isinstance(blacklist.get("topics"), list) else []
+    track = str(style.get("track") or style.get("industry") or "").strip()
+    if not track and topics:
+        track = str(topics[0]).strip()
     return {
+        "track": track,
         "name": str(style.get("name") or "").strip(),
         "industry": str(style.get("industry") or "").strip(),
         "topics": [str(item).strip() for item in topics if str(item).strip()],
@@ -95,13 +99,14 @@ def _profile(style: dict[str, Any]) -> dict[str, Any]:
 def _profile_keywords(profile: dict[str, Any]) -> tuple[set[str], set[str]]:
     direct = {
         _clean_text(value)
-        for value in [profile.get("industry"), *profile.get("topics", [])]
+        for value in [profile.get("track"), profile.get("industry"), *profile.get("topics", [])]
         if len(_clean_text(value)) >= 2
     }
     profile_text = _clean_text(
         " ".join(
             [
                 str(profile.get("industry") or ""),
+                str(profile.get("track") or ""),
                 *profile.get("topics", []),
                 str(profile.get("target_audience") or ""),
             ]
@@ -184,6 +189,7 @@ def _candidate_pool(items: list[dict[str, Any]], style: dict[str, Any]) -> list[
 
 def _ai_prompt(profile: dict[str, Any], candidates: list[dict[str, Any]]) -> str:
     safe_profile = {
+        "track": profile.get("track"),
         "name": profile.get("name"),
         "industry": profile.get("industry"),
         "topics": profile.get("topics"),
@@ -303,13 +309,13 @@ def recommend_hotspots(
 ) -> dict[str, Any]:
     items = hotspot_payload.get("items") if isinstance(hotspot_payload.get("items"), list) else []
     profile = _profile(style)
-    public_profile = {key: profile[key] for key in ("name", "industry", "topics", "target_audience")}
-    if not profile["industry"] or not profile["topics"]:
+    public_profile = {key: profile[key] for key in ("track", "name", "industry", "topics", "target_audience")}
+    if not profile["track"]:
         return {
             "items": [],
             "mode": "unavailable",
             "profile": public_profile,
-            "warning": "请先在设置中完善公众号行业和内容方向。",
+            "warning": "请先在设置中选择或输入公众号赛道。",
         }
 
     cache_key = _cache_key(items, profile, config)
@@ -341,6 +347,7 @@ def recommend_hotspots(
                     user_prompt=_ai_prompt(profile, candidates),
                     temperature=0.2,
                     max_tokens=4096,
+                    thinking=False,
                 )
                 ai_items = _apply_ai_results(candidates, raw)
                 if ai_items:

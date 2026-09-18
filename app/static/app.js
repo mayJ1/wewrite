@@ -568,18 +568,15 @@ const apiConfigItems = [
   { step: "image_api", label: "AI 生图 API Key", inputId: "settingsImageApi", placeholder: "粘贴生图 API Key", required: false, path: ["image", "api_key"], type: "password" },
 ];
 
+const accountTrackOptions = [
+  "教育校园", "科技互联网", "AI 与效率工具", "财经商业", "职场成长", "健康科普",
+  "生活方式", "文化阅读", "情感心理", "母婴育儿", "本地生活", "政务公益",
+];
+
 const styleConfigItems = [
-  { field: "name", label: "公众号名称", question: "你的公众号叫什么名字？", inputId: "styleName", placeholder: "例如：某某小学", required: true, type: "text" },
-  { field: "full_name", label: "公众号全称", question: "公众号有没有更完整的机构名称？", inputId: "styleFullName", placeholder: "例如：某某县某某小学", required: false, type: "text" },
-  { field: "industry", label: "行业/机构类型", question: "你属于什么行业或机构？", inputId: "styleIndustry", placeholder: "例如：学校、科技公司、社区机构", required: true, type: "text" },
-  { field: "topics", label: "主要内容方向", question: "平时主要发布哪些内容？", inputId: "styleTopics", placeholder: "例如：校园活动报道、科普文章，一行一个", required: true, type: "textarea", rows: 4 },
-  { field: "tone", label: "文章风格", question: "希望文章读起来是什么感觉？", inputId: "styleTone", placeholder: "例如：温暖真实、简洁自然，不过度抒情", required: true, type: "textarea", rows: 3 },
-  { field: "target_audience", label: "目标读者", question: "这些文章主要写给谁看？", inputId: "styleAudience", placeholder: "例如：家长、教职工、关注学校的人", required: false, type: "text" },
-  { field: "voice", label: "人称和语感", question: "更喜欢怎样的人称和说话方式？", inputId: "styleVoice", placeholder: "例如：第一人称复数，亲切得体", required: false, type: "text" },
-  { field: "author", label: "署名", question: "文章默认使用什么署名？", inputId: "styleAuthor", placeholder: "例如：编辑部", required: false, type: "text" },
+  { field: "track", label: "公众号赛道", question: "你的公众号主要属于哪个赛道？", inputId: "styleTrack", placeholder: "选择或输入，例如：教育校园", required: true, type: "combobox", options: accountTrackOptions },
   { field: "writing_persona", label: "默认写作人格", question: "默认使用哪一种写作感觉？", inputId: "stylePersona", placeholder: "", required: false, type: "select", optionsStep: "persona" },
   { field: "template", label: "默认排版模板", question: "默认使用哪套排版模板？", inputId: "styleTemplate", placeholder: "", required: false, type: "select", optionsStep: "template" },
-  { field: "cover_style", label: "封面风格偏好", question: "你喜欢什么样的封面画面？", inputId: "styleCover", placeholder: "例如：校园风光、温暖明亮的色调", required: false, type: "text" },
   { field: "blacklist_words", label: "禁忌词", question: "有哪些词尽量不要出现？", inputId: "styleBlacklistWords", placeholder: "一行一个，可留空", required: false, type: "textarea", rows: 3 },
   { field: "blacklist_topics", label: "禁忌话题", question: "有哪些话题不要涉及？", inputId: "styleBlacklistTopics", placeholder: "一行一个，可留空", required: false, type: "textarea", rows: 3 },
 ];
@@ -633,6 +630,7 @@ function getStyleFieldValue(field) {
   const blacklist = style.blacklist || {};
   if (field === "blacklist_words") return listToText(blacklist.words);
   if (field === "blacklist_topics") return listToText(blacklist.topics);
+  if (field === "track") return String(style.track || style.industry || style.topics?.[0] || "");
   const value = style[field];
   return Array.isArray(value) ? listToText(value) : String(value || "");
 }
@@ -676,6 +674,15 @@ function renderStyleInput(item, value = "") {
       </select>
     `;
   }
+  if (item.type === "combobox") {
+    const listId = `${item.inputId}Options`;
+    return `
+      <input id="${item.inputId}" type="text" list="${listId}" autocomplete="off" value="${escapeAttr(value)}" placeholder="${item.placeholder}">
+      <datalist id="${listId}">
+        ${(item.options || []).map((option) => `<option value="${escapeAttr(option)}"></option>`).join("")}
+      </datalist>
+    `;
+  }
   return `<input id="${item.inputId}" type="${item.type}" autocomplete="off" value="${escapeAttr(value)}" placeholder="${item.placeholder}">`;
 }
 
@@ -689,7 +696,7 @@ function renderStyleConfigRows() {
         return `
           <div class="config-status-row questionnaire-row ${configured ? "done" : "missing"}">
             <div>
-              <small>问题 ${String(index + 1).padStart(2, "0")}${item.required ? " · 必答" : " · 可选"}</small>
+              <small>配置 ${String(index + 1).padStart(2, "0")}${item.required ? " · 必填" : " · 选填"}</small>
               <strong>${configured ? item.label : item.question}</strong>
               <span class="${configured ? "config-value" : ""}" title="${configured ? escapeAttr(displayValue) : ""}">${configured ? escapeHtml(truncateDisplayValue(displayValue)) : item.required ? "未配置，必填" : "未配置，选填"}</span>
             </div>
@@ -709,7 +716,7 @@ function renderSettingsPage() {
   setHeader(
     state.firstVisit ? "欢迎使用 WeWrite" : "设置",
     state.firstVisit
-      ? "先完成账号连接和风格问卷，之后就可以直接生成公众号文章。"
+      ? "先完成账号连接和基础偏好，之后就可以直接生成公众号文章。"
       : "集中配置公众号和 AI 接口。通常第一次使用配置一次，之后需要更换密钥时再回来。"
   );
   els.progressBar.style.width = "100%";
@@ -719,8 +726,6 @@ function renderSettingsPage() {
   els.nextButton.disabled = false;
   els.nextButton.textContent = state.firstVisit ? "完成设置，开始写文章" : "保存设置";
   const cfg = state.config || {};
-  const style = state.style || {};
-  const blacklist = style.blacklist || {};
   const ipMarkup = state.publicIp
     ? `<div id="ipValue" class="ip-value">${state.publicIp}</div>
        <p id="ipHint" class="ip-hint">把这个 IP 填到微信公众平台的 IP 白名单里。</p>`
@@ -731,10 +736,10 @@ function renderSettingsPage() {
       <section class="onboarding-banner">
         <span>首次使用引导</span>
         <h2>先让 WeWrite 认识你的公众号</h2>
-        <p>第一步连接公众号和 AI，第二步回答几个写作偏好问题。密钥只会保存在这台电脑上。</p>
+        <p>第一步连接公众号和 AI，第二步选择账号赛道与默认风格。密钥只会保存在这台电脑上。</p>
         <ol>
           <li class="active">连接账号与 AI</li>
-          <li>完成账号风格问卷</li>
+          <li>选择赛道与风格</li>
           <li>开始生成第一篇文章</li>
         </ol>
       </section>
@@ -762,74 +767,9 @@ function renderSettingsPage() {
     </div>
     <div class="settings-section">
       <p class="step-count">公众号风格</p>
-      <h2>用一组小问题认识你的账号</h2>
-      <p class="hint">不用研究专业配置，按平时说话的方式回答即可。以后自动写稿会沿用这些偏好。</p>
-      <div class="settings-form">
-        <label>
-          <span>公众号名称 <strong>必填</strong></span>
-          <input id="styleName" type="text" value="${escapeAttr(style.name || "")}" placeholder="例如：某某小学">
-        </label>
-        <label>
-          <span>公众号全称</span>
-          <input id="styleFullName" type="text" value="${escapeAttr(style.full_name || "")}" placeholder="例如：某某县某某小学">
-        </label>
-        <label>
-          <span>行业/机构类型 <strong>必填</strong></span>
-          <input id="styleIndustry" type="text" value="${escapeAttr(style.industry || "")}" placeholder="例如：教育、科技、财经、生活方式">
-        </label>
-        <label>
-          <span>主要内容方向 <strong>必填</strong></span>
-          <textarea id="styleTopics" rows="4" placeholder="一行一个，例如：校园活动报道">${escapeHtml(listToText(style.topics))}</textarea>
-        </label>
-        <label>
-          <span>希望文章是什么风格 <strong>必填</strong></span>
-          <textarea id="styleTone" rows="3" placeholder="例如：温暖但不失正式，有温度的校园报道">${escapeHtml(style.tone || "")}</textarea>
-        </label>
-        <label>
-          <span>目标读者</span>
-          <input id="styleAudience" type="text" value="${escapeAttr(style.target_audience || "")}" placeholder="例如：家长、教职工、关注学校的社会人士">
-        </label>
-        <label>
-          <span>人称和语感</span>
-          <input id="styleVoice" type="text" value="${escapeAttr(style.voice || "")}" placeholder="例如：第一人称复数，温暖得体">
-        </label>
-        <label>
-          <span>署名</span>
-          <input id="styleAuthor" type="text" value="${escapeAttr(style.author || "")}" placeholder="例如：编辑部">
-        </label>
-        <label>
-          <span>默认写作人格</span>
-          <select id="stylePersona">
-            ${articleSteps.find((step) => step.id === "persona").options.map(([value, label]) => `
-              <option value="${value}" ${value === (style.writing_persona || "warm-editor") ? "selected" : ""}>${label}</option>
-            `).join("")}
-          </select>
-        </label>
-        <label>
-          <span>默认排版模板</span>
-          <select id="styleTemplate">
-            ${articleSteps.find((step) => step.id === "template").options.map(([value, label]) => `
-              <option value="${value}" ${value === (style.template || "studio-brief") ? "selected" : ""}>${label}</option>
-            `).join("")}
-          </select>
-        </label>
-        <label>
-          <span>封面风格偏好</span>
-          <input id="styleCover" type="text" value="${escapeAttr(style.cover_style || "")}" placeholder="例如：校园风光、温暖明亮的色调">
-        </label>
-        <label>
-          <span>参考账号</span>
-          <textarea id="styleReferences" rows="3" placeholder="一行一个，可留空">${escapeHtml(listToText(style.reference_accounts))}</textarea>
-        </label>
-        <label>
-          <span>禁忌词</span>
-          <textarea id="styleBlacklistWords" rows="3" placeholder="一行一个，可留空">${escapeHtml(listToText(blacklist.words))}</textarea>
-        </label>
-        <label>
-          <span>禁忌话题</span>
-          <textarea id="styleBlacklistTopics" rows="3" placeholder="一行一个，可留空">${escapeHtml(listToText(blacklist.topics))}</textarea>
-        </label>
-      </div>
+      <h2>账号内容偏好</h2>
+      <p class="hint">只需选择公众号赛道，其余项目均可沿用默认设置。赛道也可以直接输入自定义内容。</p>
+      ${renderStyleConfigRows()}
     </div>
     <section class="ip-card">
       <span>API IP 白名单</span>
@@ -848,10 +788,6 @@ function renderSettingsPage() {
   const apiForm = els.panel.querySelector(".settings-form");
   if (apiForm) {
     apiForm.outerHTML = renderApiConfigRows();
-  }
-  const styleForm = els.panel.querySelector(".settings-section .settings-form");
-  if (styleForm) {
-    styleForm.outerHTML = renderStyleConfigRows();
   }
   document.querySelector("#refreshIpButton")?.addEventListener("click", () => loadPublicIp());
   document.querySelectorAll("[data-config-edit]").forEach((button) => {
@@ -979,6 +915,7 @@ function buildStylePayloadFromState() {
   const style = state.style || {};
   const blacklist = style.blacklist || {};
   return {
+    track: style.track || style.industry || style.topics?.[0] || "",
     name: style.name || "",
     full_name: style.full_name || "",
     industry: style.industry || "",
@@ -1086,41 +1023,16 @@ function openStyleEditModal(field) {
 }
 
 async function saveSettingsPage() {
-  const stylePayload = {
-    name: document.querySelector("#styleName")?.value.trim() || "",
-    full_name: document.querySelector("#styleFullName")?.value.trim() || "",
-    industry: document.querySelector("#styleIndustry")?.value.trim() || "",
-    topics: document.querySelector("#styleTopics")?.value.trim() || "",
-    tone: document.querySelector("#styleTone")?.value.trim() || "",
-    target_audience: document.querySelector("#styleAudience")?.value.trim() || "",
-    voice: document.querySelector("#styleVoice")?.value.trim() || "",
-    author: document.querySelector("#styleAuthor")?.value.trim() || "",
-    writing_persona: document.querySelector("#stylePersona")?.value || "warm-editor",
-    template: document.querySelector("#styleTemplate")?.value || "studio-brief",
-    cover_style: document.querySelector("#styleCover")?.value.trim() || "",
-    reference_accounts: document.querySelector("#styleReferences")?.value.trim() || "",
-    blacklist_words: document.querySelector("#styleBlacklistWords")?.value.trim() || "",
-    blacklist_topics: document.querySelector("#styleBlacklistTopics")?.value.trim() || "",
-  };
+  const stylePayload = buildStylePayloadFromState();
+  stylePayload.track = document.querySelector("#styleTrack")?.value.trim() || stylePayload.track;
+  stylePayload.writing_persona = document.querySelector("#stylePersona")?.value || "warm-editor";
+  stylePayload.template = document.querySelector("#styleTemplate")?.value || "studio-brief";
+  stylePayload.blacklist_words = document.querySelector("#styleBlacklistWords")?.value.trim() || "";
+  stylePayload.blacklist_topics = document.querySelector("#styleBlacklistTopics")?.value.trim() || "";
   fillAbsentStylePayload(stylePayload);
-  if (!stylePayload.name) {
-    setMessage("请填写公众号名称。", "error");
-    document.querySelector("#styleName")?.focus();
-    return;
-  }
-  if (!stylePayload.industry) {
-    setMessage("请填写行业/机构类型。", "error");
-    document.querySelector("#styleIndustry")?.focus();
-    return;
-  }
-  if (!stylePayload.topics) {
-    setMessage("请至少填写一个主要内容方向。", "error");
-    document.querySelector("#styleTopics")?.focus();
-    return;
-  }
-  if (!stylePayload.tone) {
-    setMessage("请填写希望文章是什么风格。", "error");
-    document.querySelector("#styleTone")?.focus();
+  if (!stylePayload.track) {
+    setMessage("请选择或输入公众号赛道。", "error");
+    document.querySelector("#styleTrack")?.focus();
     return;
   }
 
@@ -3502,7 +3414,7 @@ function renderRecommendationProfile() {
       <div>
         <span class="recommendation-mode">${escapeHtml(modeLabel)}</span>
         <strong>${escapeHtml(profile.name || "当前公众号")}</strong>
-        <p>${escapeHtml([profile.industry, ...topics].filter(Boolean).join(" · ") || "尚未填写行业和内容方向")}</p>
+        <p>${escapeHtml(profile.track || [profile.industry, ...topics].filter(Boolean).join(" · ") || "尚未填写公众号赛道")}</p>
       </div>
       <span>推荐分 = 热度 30% + 相关度 40% + 切入价值 30%</span>
     </section>

@@ -15,10 +15,9 @@ wechat:
 # 如果存在 style.yaml，会优先读取。
 # 如果没有 style.yaml，Agent 会引导你完成 onboard 设置。
 style:
-  name: ""             # 公众号名称
-  topics: []           # 内容方向，如 ["AI", "产品设计"]
-  tone: ""             # 写作风格描述
+  track: ""            # 公众号赛道，如 "教育校园"、"AI 与效率工具"
   writing_persona: "midnight-friend"  # 写作人格，可选: midnight-friend | warm-editor | industry-observer | sharp-journalist | cold-analyst
+  template: "studio-brief"             # 默认排版模板
 
 # —— AI 写稿（自动生成文章必填） ——
 ai:

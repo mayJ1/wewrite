@@ -35,6 +35,19 @@ USER_PROMPT_SUFFIX = "\n</article_text>"
 _SERVER_PROCESS: subprocess.Popen | None = None
 
 
+def stop_owned_server() -> None:
+    global _SERVER_PROCESS
+    process = _SERVER_PROCESS
+    if process is not None and process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+    _SERVER_PROCESS = None
+
+
 def rewrite_status(config: dict, resource_root: Path) -> dict[str, Any]:
     rewrite_cfg = _rewrite_config(config)
     base_url = _base_url(rewrite_cfg)
@@ -213,6 +226,9 @@ def _engine_dir(rewrite_cfg: dict, resource_root: Path) -> Path:
     configured = str(rewrite_cfg.get("engine_dir") or "").strip()
     if configured:
         return Path(configured).expanduser().resolve()
+    import sys
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).resolve().parent / 'rewrite-engine'
     return (resource_root / "rewrite-engine").resolve()
 
 

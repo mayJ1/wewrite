@@ -1,0 +1,4 @@
+interface:
+  display_name: "WeChat MP Writer"
+  short_description: "微信公众号文章写作、排版、素材导入与微信草稿箱流水线"
+  default_prompt: "Use $wechat-mp-writer to write and render a WeChat Official Account article from my materials."

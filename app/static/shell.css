@@ -1,0 +1,40 @@
+:root { --canvas:#f5f6f7; --surface:#fff; --soft:#f0f2f4; --ink:#25282c; --muted:#70767e; --line:#e0e3e6; --accent:#287c6c; --tint:#e9f3ef; --rail:216px; }
+:root[data-theme="dark"] { --canvas:#171819; --surface:#202224; --soft:#292c2f; --ink:#e5e8eb; --muted:#a2a9b1; --line:#373b3e; --accent:#69c5ad; --tint:#243c35; }
+body { background:var(--canvas); color:var(--ink); padding-left:var(--rail); }
+* { letter-spacing:0 !important; }
+.top-nav { position:fixed; inset:0 auto 0 0; width:var(--rail); background:var(--surface); border:0; border-right:1px solid var(--line); backdrop-filter:none; }
+.top-nav-inner { width:100%; height:100%; padding:28px 16px 16px; display:flex; flex-direction:column; align-items:stretch; gap:7px; flex-wrap:nowrap; }
+.brand { display:flex; align-items:center; gap:10px; margin:0 4px 32px !important; color:var(--ink); }
+.brand-mark { display:grid; place-items:center; width:35px; height:35px; border-radius:8px; background:var(--accent); color:var(--surface); font-family:Georgia,serif; font-size:24px; }
+.brand small { display:block; margin-top:4px; font-size:10px; font-weight:400; color:var(--muted); }
+.top-nav button { display:flex; align-items:center; justify-content:flex-start; gap:12px; min-height:44px; padding:11px 14px; border:0; border-radius:6px; font-size:13px; font-weight:500; white-space:nowrap; }
+.top-nav svg { width:18px; height:18px; flex-shrink:0; stroke-width:1.7; }
+.top-nav .nav-button { color:var(--muted); background:transparent; }
+.top-nav .nav-button:hover { background:var(--soft); color:var(--ink); }
+.top-nav .nav-button.active { background:var(--tint); color:var(--accent); font-weight:600; }
+.top-nav .new-article-button { order:-1; margin-bottom:18px; background:var(--ink); color:var(--surface); justify-content:center; }
+.top-nav .brand { order:-2; }
+.sidebar-footer { margin-top:auto; padding-top:20px; border-top:1px solid var(--line); }
+.theme-control { display:flex; flex-direction:column; gap:8px; padding:0 8px 16px; font-size:11px; color:var(--muted); }
+.theme-control select { width:100%; font-size:12px; padding:9px; border-radius:5px; }
+.top-nav .settings-button { width:100%; margin:0; background:transparent; color:var(--muted); }
+.setup-shell, .setup-shell.hotspots-workspace { width:100%; max-width:1400px; margin:0 auto; padding:36px 36px 64px; grid-template-columns:minmax(0,1fr) 210px; gap:32px; }
+.setup-card, .hotspots-workspace .setup-card { border:0; border-radius:0; padding:0; background:transparent; min-width:0; }
+.status-panel { border:0; border-left:1px solid var(--line); border-radius:0; background:transparent; padding:8px 0 8px 24px; }
+.setup-header { padding-bottom:24px; border-bottom:1px solid var(--line); margin-bottom:26px; }
+.setup-header h1 { font-size:25px; font-weight:650; line-height:1.4; }
+.setup-header .eyebrow { display:none; }
+.setup-header .subtle { font-size:13px; margin-bottom:0; }
+.progress { height:3px; }
+.setup-shell.hotspots-workspace { grid-template-columns:minmax(0,1fr); }
+[data-theme="dark"] .note,[data-theme="dark"] .error-note { background:var(--soft); }
+[data-theme="dark"] .message.error { color:#f09898; }
+[data-theme="dark"] .message.ok { color:#69c5ad; }
+button,input,textarea,select { transition:background-color .15s,border-color .15s; }
+button { font-weight:500; }
+input,textarea,select { background:var(--surface); color:var(--ink); border-color:var(--line); }
+:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+body.settings-embed { padding-left:0; }
+body.settings-embed .setup-shell { padding:20px; }
+@media(max-width:1100px) { .setup-shell,.setup-shell.hotspots-workspace { grid-template-columns:minmax(0,1fr); padding:28px; } .status-panel { display:none; } }
+@media(max-width:650px) { :root { --rail:68px; } .top-nav-inner { padding:20px 8px 12px; } .brand { margin:0 auto 25px !important; } .brand>span:last-child,.top-nav button span,.theme-control>span { display:none; } .top-nav button { justify-content:center; padding:12px; } .theme-control { padding:0 0 12px; } .theme-control select { font-size:10px; padding:6px 0; } .setup-shell,.setup-shell.hotspots-workspace { padding:22px 16px; } .setup-header h1 { font-size:22px; } }
